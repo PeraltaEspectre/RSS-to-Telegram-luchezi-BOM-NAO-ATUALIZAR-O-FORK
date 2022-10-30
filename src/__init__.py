@@ -291,8 +291,7 @@ def main():
         scheduler.start()
 
         loop.run_forever()
-    except (KeyboardInterrupt, SystemExit) as e:
-        logger.error(f'Received {type(e).__name__}, exiting...', exc_info=e)
+        
     finally:
         loop.run_until_complete(post())
 
