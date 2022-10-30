@@ -93,14 +93,14 @@ async def user_flood_wait(user: _USER_LIKE, seconds: int, call_time: float = Non
     if call_time is None:
         call_time = time()
     flood_lock = user_flood_lock(user)
-    seconds += 1
+    seconds += 0
     async with flood_lock:
         lock_got_time = time()
         time_left = seconds - (lock_got_time - call_time)
-        if time_left > 0.1:
+        if time_left > 0.0:
             logger.log(
-                level=log.INFO if time_left < 120 else log.WARNING,
-                msg=f'Blocking any further messages for {user} due to flood control, {time_left:0.2f}s left'
+                level=log.INFO if time_left < 0 else log.WARNING,
+                msg=f'Blocking any further messages for {user} due to flood control, {time_left:0.0f}s left'
                     + (f' ({seconds}s requested)' if seconds - time_left > 5 else '')
             )
             await asyncio.sleep(time_left)
