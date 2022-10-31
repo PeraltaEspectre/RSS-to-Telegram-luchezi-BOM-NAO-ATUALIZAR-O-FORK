@@ -60,6 +60,12 @@ def init():
 
         pre_tasks.append(loop.create_task(redirect_server.run(port=env.PORT)))
 
+    if env.TOKEN.lower() == 'test':
+        # no login, just for test
+        logger.info('Test mode, no login.')
+        loop.run_until_complete(asyncio.gather(*pre_tasks))
+        exit(0)
+
     sleep_for = 0
     while api_keys:
         sleep_for += 10
@@ -250,16 +256,23 @@ async def post():
     try:
         loop.call_later(10, lambda: os.kill(os.getpid(), signal.SIGKILL))  # double insurance
         logger.info('Exiting gracefully...')
-        scheduler.shutdown(wait=False)
-        await asyncio.gather(bot.disconnect(), db.close(), tgraph.close())
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
+        if bot:
+            await bot.disconnect()
+        res = await asyncio.gather(db.close(), tgraph.close(), return_exceptions=True)
+        for e in (e for e in res if isinstance(e, BaseException)):
+            logger.error('Error when exiting gracefully: ', exc_info=e)
         aio_helper.shutdown()
     except Exception as e:
         logger.error('Error when exiting gracefully: ', exc_info=e)
+        os.kill(os.getpid(), signal.SIGKILL)
 
 
 def main():
+    exit_code = 0
     try:
-        signal.signal(signal.SIGTERM, lambda *_, **__: exit(1))  # graceful exit handler
+        signal.signal(signal.SIGTERM, lambda *_, **__: exit())  # graceful exit handler
 
         init()
 
@@ -290,10 +303,14 @@ def main():
                           misfire_grace_time=10)
         scheduler.start()
 
-        loop.run_forever()
-        
+        loop.run_until_complete(bot.disconnected)
+    except (KeyboardInterrupt, SystemExit) as e:
+        logger.error(f'Received {type(e).__name__}, exiting...', exc_info=e)
+        exit_code = e.code if isinstance(e, SystemExit) and e.code is not None else 99
     finally:
         loop.run_until_complete(post())
+        logger.log(log.INFO if exit_code == 0 else log.ERROR, f'Exited with code {exit_code}')
+        exit(exit_code)
 
 
 if __name__ == '__main__':
